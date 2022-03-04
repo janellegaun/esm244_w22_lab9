@@ -1,0 +1,160 @@
+---
+title: "Hobbit Analysis"
+author: "JGaun"
+date: "3/3/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidytext) #functions for sentiment analysis
+library(textdata)
+library(pdftools)
+library(ggwordcloud)
+```
+
+
+```{r, cache= TRUE}
+hobbit_text <- pdf_text(here::here('data', 'the-hobbit.pdf'))
+
+#try pulling out just one page
+# "\n" represents a line break
+hobbit_p34 <- hobbit_text[34]
+```
+
+## Break down into pages and lines first
+```{r}
+hobbit_lines <- data.frame(hobbit_text) %>% 
+  mutate(page = 1:n()) %>%  #each row is already one page so just give a page number
+  mutate(full_text = str_split(hobbit_text, pattern = "\\n")) %>%  #the slash in front tells R that the backslash is really meant to be a backslash
+  unnest(full_text) %>% 
+  mutate(full_text = str_squish(full_text))
+```
+
+## Do some tidying
+
+```{r}
+hobbit_chapts <- hobbit_lines %>% 
+  slice(-(1:137)) %>%  
+  mutate(chapter = ifelse(str_detect(full_text, "Chapter"), full_text, NA)) %>% 
+  fill(chapter, .direction = "down") %>%  #fills all the NA values with the last value above it 
+  separate(col = chapter, into= c("ch", "no"), sep = " ") %>% 
+  mutate(chapter = as.numeric(as.roman(no))) #takes roman numerals and converts into a factor and then write as numeric
+```
+
+
+## Wordcounts
+
+```{r}
+hobbit_words <- hobbit_chapts %>% 
+  unnest_tokens(word, full_text, token = "words") %>%  
+#switched into one row per word and converted it into lower case
+  select(-hobbit_text)
+
+hobbit_wordcount <- hobbit_words %>% 
+  count(chapter, word)#wordcount by chapter
+
+
+### Remove stopwords
+x <- stop_words
+
+hobbit_words_clean <- hobbit_words %>% 
+  anti_join(stop_words, by = "word")
+
+nonstop_counts <- hobbit_words_clean %>% 
+  count(chapter, word)
+```
+
+
+```{r}
+top_5_words <- nonstop_counts %>% 
+  group_by(chapter) %>% 
+  arrange(-n) %>% 
+  slice(1:5) %>% 
+  ungroup()
+
+
+ggplot(top_5_words)+
+  geom_col(aes(x = n, y = word), fill = "blue") +
+  facet_wrap(~chapter, scales = "free")
+  
+```
+
+## Word cloud for chapter 1
+
+```{r}
+#find top 100 words
+ch1_top_100 <- nonstop_counts %>% 
+  filter(chapter == "1") %>% 
+  arrange(-n) %>% 
+  slice(1:100)
+
+ch1_cloud <- ggplot(ch1_top_100, aes(label = word))+
+  geom_text_wordcloud(aes(color = n, size = n), shape = "diamond")+
+  scale_size_area(max_size = 6) +
+  scale_color_gradientn(colors = c("darkgreen","blue","purple"))
+ch1_cloud
+```
+
+## Sentiment Analysis
+
+```{r}
+get_sentiments(lexicon = "afinn")
+
+# Let's look at the pretty positive words:
+afinn_pos <- get_sentiments("afinn") %>% 
+  filter(value %in% c(3,4,5))
+
+# Check them out:
+afinn_pos
+```
+
+For comparison, check out the bing lexicon: 
+
+```{r}
+get_sentiments(lexicon = "bing")
+```
+
+
+```{r}
+hobbit_afinn <- hobbit_words_clean %>% 
+  inner_join(get_sentiments("afinn"), by = "word")
+```
+
+```{r}
+# Plot them: 
+ggplot(data = afinn_counts, aes(x = value, y = n)) +
+  geom_col() +
+  facet_wrap(~chapter)
+
+# Find the mean afinn score by chapter: 
+afinn_means <- hobbit_afinn %>% 
+  group_by(chapter) %>% 
+  summarize(mean_afinn = mean(value))
+
+ggplot(data = afinn_means, 
+       aes(x = fct_rev(factor(chapter)),
+           y = mean_afinn)) +
+           # y = fct_rev(as.factor(chapter)))) +
+  geom_col() +
+  coord_flip()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

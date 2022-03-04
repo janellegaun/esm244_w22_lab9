@@ -1,0 +1,153 @@
+---
+title: "JG_Part1"
+author: "JGaun"
+date: "3/3/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(broom)
+
+# Time series packages
+library(tsibble)
+library(feasts)
+library(fable)
+```
+
+```{r}
+energy <- read_csv(here("data", "energy.csv"))
+
+energy_ts <- energy %>% 
+  mutate(date = tsibble::yearmonth(month)) %>% 
+  as_tsibble(key = NULL, index = date)
+```
+
+### Exploratory Plotting
+
+```{r}
+ggplot(data = energy_ts, aes(x = date, y = res_total)) +
+  geom_line() +
+  labs(y = "Residential energy consumption \n (Trillion BTU)")
+```
+
+### Seasonality
+
+We'll start by plotting seasonality 
+
+```{r}
+energy_ts %>% 
+  gg_season(y = res_total)+
+  theme_minimal()+
+  scale_color_viridis_c()+
+  labs(x = "Month",
+       y = "Residential energy consumption (Trillion BTUs)")
+```
+
+We can there is a change in the summer energy use in some years. Why? Likely changes in AC. 
+
+```{r}
+energy_ts %>% gg_subseries(res_total)
+
+#allows us to view that energy use has increaesd for almost all months with time, particularlly in july and august
+```
+
+#decomposition
+```{r}
+# Find STL decomposition
+dcmp <- energy_ts %>%
+  model(STL(res_total ~ season()))
+
+# View the components
+# components(dcmp)
+
+# Visualize the decomposed components
+components(dcmp) %>% 
+  autoplot() +
+  theme_minimal()
+
+#the grey bars on the left side are the range of residuals. Its the same size on all the plots to show the residuals compared to the relative scale of each plot. 
+```
+
+#autocorrelate
+```{r}
+energy_ts %>% 
+  ACF(res_total) %>% 
+  autoplot()
+  
+```
+
+### Forecasting
+```{r}
+# Create the model:
+energy_fit <- energy_ts %>%
+  model(
+    ets = ETS(res_total ~ season("M")) #M for multiplicative
+  )
+
+# Forecast using the model 10 years into the future:
+energy_forecast <- energy_fit %>%  #take the model to predict future models
+  forecast(h = "10 years")  #change the value in quotes to change the years predicted for
+
+# Plot just the forecasted values (with 80 & 95% CIs):
+energy_forecast %>% 
+  autoplot()  #pass the predicted values into an autoplot
+
+# Or plot it added to the original data:
+energy_forecast %>% 
+  autoplot(energy_ts)
+```
+
+```{r}
+# Append the predicted values (and residuals) to original energy data
+energy_predicted <- broom::augment(energy_fit)
+
+# Use View(energy_predicted) to see the resulting data frame
+```
+
+Now, plot the actual energy values (res_total), and the predicted values (stored as .fitted) atop them: 
+```{r}
+ggplot(data = energy_predicted) +
+  geom_line(aes(x = date, y = res_total)) + #observed values
+  geom_line(aes(x = date, y = .fitted), color = "red", alpha = .7) #predicted
+
+#can see the black (acutally observed) and comparing to predicted model (red). Appears to follow the observed pretty well 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

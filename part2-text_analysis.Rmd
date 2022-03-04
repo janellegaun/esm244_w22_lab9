@@ -1,0 +1,67 @@
+---
+title: "part2 - text analysis"
+author: "JGaun"
+date: "3/3/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+```{r}
+vec <- c("  A Unicorn       Fish", "   add cornmeal", " French FRIES", " acorn squash ")
+
+
+str_detect(vec, pattern = "corn")
+str_detect(vec, pattern = "fish") #not finding because the capital F throws it off
+str_extract(vec, pattern = "[a-z]") #any character that falls within a-z lowercase
+
+#its finding the first letter that not a space or a capital which is why 
+
+str_extract(vec, pattern = "[a-zA-Z]+") 
+```
+
+```{r}
+walk_subset <- starwars %>% 
+  filter(str_detect(name, "walk"))
+```
+
+```{r replacement in vector}
+str_replace(vec, pattern = "corn", replacement= "COOLLL")
+str_replace_all(vec, pattern = "a", replace= "zzzz")
+```
+
+```{r replacement in dataframes}
+sw_tornado <- starwars %>% 
+  mutate(name = str_replace(name, pattern = "Sky", replacement = "TORNADO"))
+```
+
+```{r remove whitespace}
+str_trim(vec) #removes leading whitespace
+str_squish(vec) #removes any extrawhite space and squashes into regular one space between words
+```
+
+
+```{r dealing with capitalization}
+str_to_lower(vec) #all lowercase in string
+tolower(vec) #all lowercase in base R
+
+str_to_upper(vec) #all capital in stringr
+toupper(vec) #all capital in baseR
+
+str_to_title(vec)  #capitalized like titles in stringr
+```
+
+
+```{r}
+sw_combo <- starwars %>% 
+  mutate(name = str_to_lower(name)) %>% 
+  filter(str_detect(name, "darth")) %>% 
+  mutate(name = str_replace(name, "darth", replacement = "PAPA"))
+```
+
+
+
